@@ -1,0 +1,140 @@
+/**
+ * Tầng gọi dữ liệu cho phân quyền Y tế.
+ * Hiện dùng localStorage làm "database" giả lập để chạy được khi chưa có Backend.
+ * Khi có server, chỉ cần thay thân các hàm bên dưới bằng fetch tới:
+ *   GET  /api/medical/lookup/:code
+ *   POST /api/medical/evaluate
+ */
+
+export type Gender = "Nam" | "Nữ";
+
+export interface Vitals {
+  weight: number; // kg
+  pulse: number; // lần/phút
+  systolic: number; // mmHg
+  diastolic: number; // mmHg
+  temperature: number; // °C
+  hemoglobin: number; // g/L
+}
+
+export interface IndicatorCheck {
+  key: keyof Vitals;
+  label: string;
+  value: number;
+  unit: string;
+  rule: string;
+  ok: boolean;
+}
+
+export interface Screening {
+  vitals: Vitals;
+  checks: IndicatorCheck[];
+  passed: boolean;
+  reasons: string[];
+  at: string;
+}
+
+export type DonationOutcome = "success" | "failed";
+
+export interface Donation {
+  outcome: DonationOutcome;
+  volumeMl?: number;
+  failReason?: string;
+  at: string;
+}
+
+export interface DonorRecord {
+  maDinhDanh: string; // VD: HM-8392
+  hoTen: string;
+  soCccd: string;
+  mssv: string;
+  ngaySinh: string;
+  gioiTinh: Gender;
+  nhomMau: string;
+  lichHen: string;
+  screening?: Screening;
+  donation?: Donation;
+}
+
+const KEY = "hm_donors";
+
+const SEED: DonorRecord[] = [
+  {
+    maDinhDanh: "HM-8392",
+    hoTen: "Nguyễn Văn An",
+    soCccd: "079203001234",
+    mssv: "21IT001",
+    ngaySinh: "2003-05-14",
+    gioiTinh: "Nam",
+    nhomMau: "O+",
+    lichHen: "08:30 - 09:00",
+  },
+  {
+    maDinhDanh: "HM-1457",
+    hoTen: "Trần Thị Bình",
+    soCccd: "079204005678",
+    mssv: "21IT042",
+    ngaySinh: "2004-09-02",
+    gioiTinh: "Nữ",
+    nhomMau: "A+",
+    lichHen: "09:00 - 09:30",
+  },
+];
+
+function load(): DonorRecord[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw) as DonorRecord[];
+  } catch {
+    /* bỏ qua, dùng dữ liệu mẫu */
+  }
+  localStorage.setItem(KEY, JSON.stringify(SEED));
+  return SEED;
+}
+
+function save(list: DonorRecord[]) {
+  localStorage.setItem(KEY, JSON.stringify(list));
+}
+
+const delay = <T,>(v: T, ms = 350) =>
+  new Promise<T>((res) => setTimeout(() => res(v), ms));
+
+/** Tra cứu nghiêm ngặt theo mã định danh (khớp chính xác). */
+export async function lookupByCode(code: string): Promise<DonorRecord | null> {
+  const c = code.trim().toUpperCase();
+  return delay(load().find((d) => d.maDinhDanh === c) ?? null);
+}
+
+/** Lưu kết quả sàng lọc sức khỏe. */
+export async function saveScreening(
+  code: string,
+  screening: Screening,
+): Promise<DonorRecord> {
+  const list = load();
+  const i = list.findIndex((d) => d.maDinhDanh === code);
+  if (i < 0) throw new Error("Không tìm thấy hồ sơ");
+  list[i] = { ...list[i], screening };
+  save(list);
+  return delay(list[i]);
+}
+
+/** Lưu kết quả lấy máu cuối cùng. */
+export async function saveDonation(
+  code: string,
+  donation: Donation,
+): Promise<DonorRecord> {
+  const list = load();
+  const i = list.findIndex((d) => d.maDinhDanh === code);
+  if (i < 0) throw new Error("Không tìm thấy hồ sơ");
+  list[i] = { ...list[i], donation };
+  save(list);
+  return delay(list[i]);
+}
+
+export type NotifyType = "screening_failed" | "donation_failed" | "donation_done";
+
+/** Giả lập gửi thông báo/email cho sinh viên (sau này gọi email.service ở BE). */
+export async function notifyStudent(donor: DonorRecord, type: NotifyType) {
+  console.info(`[notify] ${type} -> ${donor.hoTen} (${donor.maDinhDanh})`);
+  return delay(true, 200);
+}

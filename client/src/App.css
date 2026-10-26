@@ -222,6 +222,16 @@ body {
   align-items: center;
 }
 .field input,
+.field select,
+.field textarea {
+  color: var(--ink);
+  caret-color: var(--red-700);
+}
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #9ca3af;
+}
+.field input,
 .field select {
   padding: 11px 12px;
   border: 1px solid var(--line);

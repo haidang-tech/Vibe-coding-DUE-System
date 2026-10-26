@@ -1,0 +1,199 @@
+import React, { useState } from "react";
+
+type Status = "Chờ duyệt" | "Đủ điều kiện" | "Không đủ điều kiện";
+
+interface Donor {
+  id: number;
+  name: string;
+  studentId: string;
+  bloodType: string;
+  weight: number;
+  note: string;
+  status: Status;
+}
+
+interface StudentRegisterProps {
+  onAddDonor: (donor: Omit<Donor, "id">) => void;
+}
+
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+const HEALTH_CONDITIONS = [
+  "Đang bị cảm, sốt hoặc ho trong 14 ngày qua",
+  "Đã từng mắc viêm gan B, C hoặc HIV",
+  "Đã xăm mình / xỏ khuyên trong 6 tháng qua",
+  "Đang dùng kháng sinh hoặc thuốc điều trị",
+  "Đã tiêm vắc-xin trong 4 tuần qua",
+  "Mắc bệnh tim mạch, huyết áp, tiểu đường",
+];
+
+export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
+  const [form, setForm] = useState({
+    name: "",
+    studentId: "",
+    dob: "",
+    phone: "",
+    bloodType: "O+",
+    weight: "",
+  });
+  const [conditions, setConditions] = useState<boolean[]>(
+    HEALTH_CONDITIONS.map(() => false),
+  );
+  const [otherNote, setOtherNote] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(
+    null,
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const weight = Number(form.weight);
+    const age =
+      (Date.now() - new Date(form.dob).getTime()) / (365.25 * 24 * 3600 * 1000);
+
+    let status: Status = "Đủ điều kiện";
+    let msg =
+      "Đăng ký thành công! Vui lòng chờ xác nhận lịch hiến máu từ Ban Tổ Chức.";
+
+    if (age < 18 || age > 60) {
+      status = "Không đủ điều kiện";
+      msg = "Độ tuổi hiến máu phải từ 18 đến 60.";
+    } else if (weight < 45) {
+      status = "Không đủ điều kiện";
+      msg = "Cân nặng tối thiểu để hiến máu là 45 kg.";
+    } else if (conditions.some(Boolean) || otherNote.trim()) {
+      status = "Chờ duyệt";
+      msg =
+        "Hồ sơ đã được ghi nhận. Do có tiền sử sức khỏe cần lưu ý, nhân viên y tế sẽ đánh giá trực tiếp.";
+    }
+
+    onAddDonor({
+      name: form.name,
+      studentId: form.studentId,
+      bloodType: form.bloodType,
+      weight,
+      note: otherNote.trim(),
+      status,
+    });
+
+    setResult({ ok: status !== "Không đủ điều kiện", msg });
+
+    if (status !== "Không đủ điều kiện") {
+      setForm({
+        name: "",
+        studentId: "",
+        dob: "",
+        phone: "",
+        bloodType: "O+",
+        weight: "",
+      });
+      setConditions(HEALTH_CONDITIONS.map(() => false));
+      setOtherNote("");
+    }
+  };
+
+  return (
+    <div className="panel">
+      <h3>Đăng ký hiến máu tình nguyện</h3>
+      <form className="grid" onSubmit={handleSubmit}>
+        <div className="section-title">1. Thông tin cá nhân</div>
+        <div className="field">
+          <label>Họ và tên</label>
+          <input
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Nguyễn Văn A"
+          />
+        </div>
+        <div className="field">
+          <label>Mã sinh viên</label>
+          <input
+            required
+            value={form.studentId}
+            onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+            placeholder="VD: 21IT001"
+          />
+        </div>
+        <div className="field">
+          <label>Ngày sinh</label>
+          <input
+            required
+            type="date"
+            value={form.dob}
+            onChange={(e) => setForm({ ...form, dob: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Số điện thoại</label>
+          <input
+            required
+            type="tel"
+            pattern="[0-9]{9,11}"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="0901234567"
+          />
+        </div>
+        <div className="field">
+          <label>Nhóm máu</label>
+          <select
+            value={form.bloodType}
+            onChange={(e) => setForm({ ...form, bloodType: e.target.value })}
+          >
+            {BLOOD_TYPES.map((b) => (
+              <option key={b}>{b}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>Cân nặng (kg)</label>
+          <input
+            required
+            type="number"
+            min={30}
+            max={200}
+            value={form.weight}
+            onChange={(e) => setForm({ ...form, weight: e.target.value })}
+            placeholder="VD: 55"
+          />
+        </div>
+
+        <div className="section-title">2. Tiền sử sức khỏe (tick nếu có)</div>
+        <div className="checks">
+          {HEALTH_CONDITIONS.map((c, i) => (
+            <label className="check" key={c}>
+              <input
+                type="checkbox"
+                checked={conditions[i]}
+                onChange={() =>
+                  setConditions(
+                    conditions.map((v, idx) => (idx === i ? !v : v)),
+                  )
+                }
+              />
+              <span>{c}</span>
+            </label>
+          ))}
+        </div>
+        <div className="field full">
+          <label>Ghi chú bệnh nền khác (nếu có)</label>
+          <textarea
+            rows={3}
+            value={otherNote}
+            onChange={(e) => setOtherNote(e.target.value)}
+            placeholder="VD: hen suyễn, thiếu máu, dị ứng thuốc..."
+          />
+        </div>
+
+        <div className="field full">
+          <button className="btn" type="submit">
+            Gửi đăng ký hiến máu
+          </button>
+        </div>
+      </form>
+      {result && (
+        <div className={`alert ${result.ok ? "ok" : "err"}`}>{result.msg}</div>
+      )}
+    </div>
+  );
+}

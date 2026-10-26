@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import MedicalPortal from "./pages/medical/MedicalPortal";
 
 type Tab = "student" | "organizer_login" | "medical_login";
 type Status = "Chờ duyệt" | "Đủ điều kiện" | "Không đủ điều kiện";
@@ -431,9 +432,11 @@ export default function App() {
             ? renderDashboard("organizer")
             : renderLogin("organizer"))}
         {activeTab === "medical_login" &&
-          (isMedicalLoggedIn
-            ? renderDashboard("medical")
-            : renderLogin("medical"))}
+          (isMedicalLoggedIn ? (
+            <MedicalPortal onLogout={() => setIsMedicalLoggedIn(false)} />
+          ) : (
+            renderLogin("medical")
+          ))}
       </main>
 
       <footer className="footer">
