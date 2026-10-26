@@ -47,6 +47,10 @@ export interface DonorRecord {
   maDinhDanh: string; // VD: HM-8392 ("" cho tới khi check-in)
   checkedIn?: boolean;
   checkInAt?: string;
+  email?: string;
+  sdt?: string;
+  ghiChu?: string;
+  conditions?: string[];
   hoTen: string;
   soCccd: string;
   mssv: string;
@@ -214,4 +218,99 @@ export type NotifyType =
 export async function notifyStudent(donor: DonorRecord, type: NotifyType) {
   console.info(`[notify] ${type} -> ${donor.hoTen} (${donor.maDinhDanh})`);
   return delay(true, 200);
+}
+
+/* ---------------- Sinh viên ---------------- */
+
+export interface RegisterInput {
+  hoTen: string;
+  mssv: string;
+  soCccd: string;
+  email: string;
+  sdt: string;
+  ngaySinh: string;
+  gioiTinh: Gender;
+  nhomMau: string;
+  canNang: number;
+  conditions: string[]; // các tiền sử sức khỏe đã tick
+  ghiChu: string;
+}
+
+export type RegisterResult =
+  | { ok: true; donor: DonorRecord }
+  | { ok: false; reason: string };
+
+const SLOTS = [
+  "08:00 - 08:30",
+  "08:30 - 09:00",
+  "09:00 - 09:30",
+  "09:30 - 10:00",
+  "10:00 - 10:30",
+  "10:30 - 11:00",
+];
+
+/** Giả lập AI kiểm tra bệnh lý (sau này thay bằng aiScreening.service + Gemini). */
+function screenRegistration(i: RegisterInput): string | null {
+  const age =
+    (Date.now() - new Date(i.ngaySinh).getTime()) / (365.25 * 24 * 3600 * 1000);
+  if (isNaN(age) || age < 18 || age > 60)
+    return "Độ tuổi hiến máu phải từ 18 đến 60.";
+  if (i.canNang < 42) return "Cân nặng chưa đạt mức tối thiểu để hiến máu.";
+  if (i.conditions.length > 0)
+    return `Tiền sử sức khỏe chưa phù hợp để hiến máu: ${i.conditions.join("; ")}.`;
+  return null;
+}
+
+/** Giả lập AI phân lịch: chọn khung giờ đang có ít người đăng ký nhất. */
+function assignSlot(list: DonorRecord[]): string {
+  const count = (slot: string) => list.filter((d) => d.lichHen === slot).length;
+  return SLOTS.reduce(
+    (best, s) => (count(s) < count(best) ? s : best),
+    SLOTS[0],
+  );
+}
+
+/** Giả lập gửi email theo mẫu (sau này gọi email.service ở BE). */
+function sendEmail(to: string, subject: string, body: string) {
+  console.info(`[email] -> ${to}\n${subject}\n${body}`);
+}
+
+export async function registerDonor(i: RegisterInput): Promise<RegisterResult> {
+  const list = load();
+  if (list.some((d) => d.soCccd === i.soCccd))
+    return delay({ ok: false, reason: "Số CCCD này đã được đăng ký." });
+  if (list.some((d) => d.mssv.toLowerCase() === i.mssv.toLowerCase()))
+    return delay({ ok: false, reason: "Mã sinh viên này đã được đăng ký." });
+
+  const reason = screenRegistration(i);
+  if (reason) {
+    sendEmail(
+      i.email,
+      "Thông báo kết quả đăng ký hiến máu",
+      `Rất tiếc, hồ sơ của bạn chưa đủ điều kiện. Lý do: ${reason}`,
+    );
+    return delay({ ok: false, reason });
+  }
+
+  const donor: DonorRecord = {
+    maDinhDanh: "",
+    hoTen: i.hoTen.trim(),
+    soCccd: i.soCccd.trim(),
+    mssv: i.mssv.trim(),
+    ngaySinh: i.ngaySinh,
+    gioiTinh: i.gioiTinh,
+    nhomMau: i.nhomMau,
+    lichHen: assignSlot(list),
+    email: i.email,
+    sdt: i.sdt,
+    ghiChu: i.ghiChu.trim(),
+    conditions: i.conditions,
+  };
+  save([...list, donor]);
+  sendEmail(
+    i.email,
+    "Xác nhận đăng ký hiến máu",
+    `Đăng ký thành công. Lịch hẹn của bạn: ${donor.lichHen}. Vui lòng mang theo CCCD để check-in.`,
+  );
+  return delay({ ok: true, donor });
 }

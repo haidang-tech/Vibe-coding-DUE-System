@@ -1,20 +1,9 @@
-import React, { useState } from "react";
-
-type Status = "Chờ duyệt" | "Đủ điều kiện" | "Không đủ điều kiện";
-
-interface Donor {
-  id: number;
-  name: string;
-  studentId: string;
-  bloodType: string;
-  weight: number;
-  note: string;
-  status: Status;
-}
-
-interface StudentRegisterProps {
-  onAddDonor: (donor: Omit<Donor, "id">) => void;
-}
+import { useState } from "react";
+import {
+  registerDonor,
+  type DonorRecord,
+  type Gender,
+} from "../../services/api";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -27,81 +16,83 @@ const HEALTH_CONDITIONS = [
   "Mắc bệnh tim mạch, huyết áp, tiểu đường",
 ];
 
-export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
-  const [form, setForm] = useState({
-    name: "",
-    studentId: "",
-    dob: "",
-    phone: "",
-    bloodType: "O+",
-    weight: "",
-  });
+const EMPTY = {
+  hoTen: "",
+  mssv: "",
+  soCccd: "",
+  email: "",
+  sdt: "",
+  ngaySinh: "",
+  gioiTinh: "Nam" as Gender,
+  nhomMau: "O+",
+  canNang: "",
+};
+
+interface Props {
+  onRegistered?: () => void;
+}
+
+export default function RegisterForm({ onRegistered }: Props) {
+  const [form, setForm] = useState(EMPTY);
   const [conditions, setConditions] = useState<boolean[]>(
     HEALTH_CONDITIONS.map(() => false),
   );
-  const [otherNote, setOtherNote] = useState("");
-  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(
-    null,
-  );
+  const [ghiChu, setGhiChu] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{
+    ok: boolean;
+    msg: string;
+    donor?: DonorRecord;
+  } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const set = <K extends keyof typeof EMPTY>(k: K, v: (typeof EMPTY)[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const weight = Number(form.weight);
-    const age =
-      (Date.now() - new Date(form.dob).getTime()) / (365.25 * 24 * 3600 * 1000);
-
-    let status: Status = "Đủ điều kiện";
-    let msg =
-      "Đăng ký thành công! Vui lòng chờ xác nhận lịch hiến máu từ Ban Tổ Chức.";
-
-    if (age < 18 || age > 60) {
-      status = "Không đủ điều kiện";
-      msg = "Độ tuổi hiến máu phải từ 18 đến 60.";
-    } else if (weight < 45) {
-      status = "Không đủ điều kiện";
-      msg = "Cân nặng tối thiểu để hiến máu là 45 kg.";
-    } else if (conditions.some(Boolean) || otherNote.trim()) {
-      status = "Chờ duyệt";
-      msg =
-        "Hồ sơ đã được ghi nhận. Do có tiền sử sức khỏe cần lưu ý, nhân viên y tế sẽ đánh giá trực tiếp.";
-    }
-
-    onAddDonor({
-      name: form.name,
-      studentId: form.studentId,
-      bloodType: form.bloodType,
-      weight,
-      note: otherNote.trim(),
-      status,
+    setBusy(true);
+    setResult(null);
+    const res = await registerDonor({
+      ...form,
+      canNang: Number(form.canNang),
+      conditions: HEALTH_CONDITIONS.filter((_, i) => conditions[i]),
+      ghiChu,
     });
+    setBusy(false);
 
-    setResult({ ok: status !== "Không đủ điều kiện", msg });
-
-    if (status !== "Không đủ điều kiện") {
-      setForm({
-        name: "",
-        studentId: "",
-        dob: "",
-        phone: "",
-        bloodType: "O+",
-        weight: "",
+    if (res.ok) {
+      setResult({
+        ok: true,
+        donor: res.donor,
+        msg: `Đăng ký thành công! Lịch hẹn của bạn: ${res.donor.lichHen}. Email xác nhận đã được gửi tới ${res.donor.email}.`,
       });
+      setForm(EMPTY);
       setConditions(HEALTH_CONDITIONS.map(() => false));
-      setOtherNote("");
+      setGhiChu("");
+      onRegistered?.();
+    } else {
+      setResult({
+        ok: false,
+        msg: `Hồ sơ không hợp lệ: ${res.reason} Thông báo từ chối đã được gửi qua email.`,
+      });
     }
   };
 
   return (
     <div className="panel">
       <h3>Đăng ký hiến máu tình nguyện</h3>
-      <form className="grid" onSubmit={handleSubmit}>
+      <p className="sub">
+        Hệ thống kiểm tra điều kiện sức khỏe và tự động xếp lịch hẹn cho bạn.
+      </p>
+
+      <form className="grid" onSubmit={submit}>
         <div className="section-title">1. Thông tin cá nhân</div>
         <div className="field">
           <label>Họ và tên</label>
           <input
             required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={form.hoTen}
+            onChange={(e) => set("hoTen", e.target.value)}
             placeholder="Nguyễn Văn A"
           />
         </div>
@@ -109,18 +100,32 @@ export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
           <label>Mã sinh viên</label>
           <input
             required
-            value={form.studentId}
-            onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+            value={form.mssv}
+            onChange={(e) => set("mssv", e.target.value)}
             placeholder="VD: 21IT001"
           />
         </div>
         <div className="field">
-          <label>Ngày sinh</label>
+          <label>Số CCCD</label>
           <input
             required
-            type="date"
-            value={form.dob}
-            onChange={(e) => setForm({ ...form, dob: e.target.value })}
+            inputMode="numeric"
+            pattern="\d{12}"
+            maxLength={12}
+            title="CCCD gồm đúng 12 chữ số"
+            value={form.soCccd}
+            onChange={(e) => set("soCccd", e.target.value)}
+            placeholder="12 chữ số"
+          />
+        </div>
+        <div className="field">
+          <label>Email nhận thông báo</label>
+          <input
+            required
+            type="email"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+            placeholder="ban@gmail.com"
           />
         </div>
         <div className="field">
@@ -129,16 +134,35 @@ export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
             required
             type="tel"
             pattern="[0-9]{9,11}"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            value={form.sdt}
+            onChange={(e) => set("sdt", e.target.value)}
             placeholder="0901234567"
           />
         </div>
         <div className="field">
+          <label>Ngày sinh</label>
+          <input
+            required
+            type="date"
+            value={form.ngaySinh}
+            onChange={(e) => set("ngaySinh", e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label>Giới tính</label>
+          <select
+            value={form.gioiTinh}
+            onChange={(e) => set("gioiTinh", e.target.value as Gender)}
+          >
+            <option>Nam</option>
+            <option>Nữ</option>
+          </select>
+        </div>
+        <div className="field">
           <label>Nhóm máu</label>
           <select
-            value={form.bloodType}
-            onChange={(e) => setForm({ ...form, bloodType: e.target.value })}
+            value={form.nhomMau}
+            onChange={(e) => set("nhomMau", e.target.value)}
           >
             {BLOOD_TYPES.map((b) => (
               <option key={b}>{b}</option>
@@ -152,8 +176,8 @@ export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
             type="number"
             min={30}
             max={200}
-            value={form.weight}
-            onChange={(e) => setForm({ ...form, weight: e.target.value })}
+            value={form.canNang}
+            onChange={(e) => set("canNang", e.target.value)}
             placeholder="VD: 55"
           />
         </div>
@@ -179,18 +203,19 @@ export default function StudentRegister({ onAddDonor }: StudentRegisterProps) {
           <label>Ghi chú bệnh nền khác (nếu có)</label>
           <textarea
             rows={3}
-            value={otherNote}
-            onChange={(e) => setOtherNote(e.target.value)}
+            value={ghiChu}
+            onChange={(e) => setGhiChu(e.target.value)}
             placeholder="VD: hen suyễn, thiếu máu, dị ứng thuốc..."
           />
         </div>
 
         <div className="field full">
-          <button className="btn" type="submit">
-            Gửi đăng ký hiến máu
+          <button className="btn" type="submit" disabled={busy}>
+            {busy ? "Hệ thống đang kiểm tra hồ sơ..." : "Gửi đăng ký hiến máu"}
           </button>
         </div>
       </form>
+
       {result && (
         <div className={`alert ${result.ok ? "ok" : "err"}`}>{result.msg}</div>
       )}
