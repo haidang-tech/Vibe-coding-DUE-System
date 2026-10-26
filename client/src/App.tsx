@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 import MedicalPortal from "./pages/medical/MedicalPortal";
+import OrganizerPortal from "./pages/organizer/OrganizerPortal";
 
 type Tab = "student" | "organizer_login" | "medical_login";
 type Status = "Chờ duyệt" | "Đủ điều kiện" | "Không đủ điều kiện";
@@ -138,12 +139,6 @@ export default function App() {
       setOtherNote("");
     }
   };
-
-  const badgeClass = (s: Status) =>
-    s === "Đủ điều kiện" ? "ok" : s === "Chờ duyệt" ? "wait" : "no";
-
-  const updateStatus = (id: number, status: Status) =>
-    setDonors((prev) => prev.map((d) => (d.id === id ? { ...d, status } : d)));
 
   /* ---------- Các khu vực ---------- */
 
@@ -286,91 +281,6 @@ export default function App() {
     );
   };
 
-  const renderDashboard = (role: "organizer" | "medical") => {
-    const isOrg = role === "organizer";
-    const logout = () =>
-      isOrg ? setIsOrganizerLoggedIn(false) : setIsMedicalLoggedIn(false);
-    return (
-      <div className="panel">
-        <div className="dash-head">
-          <div>
-            <h3>
-              {isOrg ? "Bảng điều khiển Ban Tổ Chức" : "Bảng điều khiển Y tế"}
-            </h3>
-          </div>
-          <button className="btn ghost" onClick={logout}>
-            Đăng xuất
-          </button>
-        </div>
-
-        {donors.length === 0 ? (
-          <div
-            className="alert err"
-            style={{ background: "#f3f4f6", color: "#6b7280" }}
-          >
-            Chưa có hồ sơ đăng ký nào.
-          </div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Họ tên</th>
-                <th>MSSV</th>
-                <th>Nhóm máu</th>
-                <th>Cân nặng</th>
-                <th>Ghi chú bệnh nền</th>
-                <th>Trạng thái</th>
-                {!isOrg && <th>Thao tác</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {donors.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.id}</td>
-                  <td>{d.name}</td>
-                  <td>{d.studentId}</td>
-                  <td>
-                    <b>{d.bloodType}</b>
-                  </td>
-                  <td>{d.weight} kg</td>
-                  <td>{d.note || "—"}</td>
-                  <td>
-                    <span className={`badge ${badgeClass(d.status)}`}>
-                      {d.status}
-                    </span>
-                  </td>
-                  {!isOrg && (
-                    <td>
-                      <button
-                        className="btn ghost"
-                        style={{
-                          padding: "5px 10px",
-                          fontSize: "0.8rem",
-                          marginRight: 6,
-                        }}
-                        onClick={() => updateStatus(d.id, "Đủ điều kiện")}
-                      >
-                        Duyệt
-                      </button>
-                      <button
-                        className="btn ghost"
-                        style={{ padding: "5px 10px", fontSize: "0.8rem" }}
-                        onClick={() => updateStatus(d.id, "Không đủ điều kiện")}
-                      >
-                        Từ chối
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    );
-  };
-
   return (
     <>
       <header className="topbar">
@@ -428,9 +338,11 @@ export default function App() {
 
         {activeTab === "student" && renderRegister()}
         {activeTab === "organizer_login" &&
-          (isOrganizerLoggedIn
-            ? renderDashboard("organizer")
-            : renderLogin("organizer"))}
+          (isOrganizerLoggedIn ? (
+            <OrganizerPortal onLogout={() => setIsOrganizerLoggedIn(false)} />
+          ) : (
+            renderLogin("organizer")
+          ))}
         {activeTab === "medical_login" &&
           (isMedicalLoggedIn ? (
             <MedicalPortal onLogout={() => setIsMedicalLoggedIn(false)} />

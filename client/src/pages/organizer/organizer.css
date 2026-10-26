@@ -1,0 +1,143 @@
+/* ---------- Organizer portal ---------- */
+.subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+  border-bottom: 2px solid var(--red-100);
+}
+.subtabs button {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+.subtabs button.active {
+  color: var(--red-700);
+  border-bottom-color: var(--red-700);
+}
+
+.checkin {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.scanner-view {
+  width: 100%;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #111;
+}
+.scanner-view:empty {
+  display: none;
+}
+.scanner-off {
+  display: grid;
+  place-items: center;
+  height: 260px;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: #fafafa;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+.modal {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: var(--shadow);
+}
+.big-code {
+  text-align: center;
+  white-space: nowrap;
+  font-family: "Consolas", "SF Mono", "Courier New", monospace;
+  font-size: clamp(2rem, 10vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 3px;
+  color: var(--red-700);
+  background: linear-gradient(180deg, #fff, var(--red-100));
+  border: 2px dashed var(--red-500);
+  border-radius: var(--radius);
+  padding: 22px 12px;
+  margin: 14px 0;
+  user-select: all;
+}
+.link-btn {
+  display: block;
+  margin: 16px auto 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Phiếu in */
+.print-sheet {
+  display: none;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 24px;
+    text-align: center;
+    color: #000;
+  }
+  .print-code {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: 6px;
+    border: 3px solid #000;
+    display: inline-block;
+    padding: 12px 28px;
+    margin: 16px 0;
+  }
+  .print-sheet table {
+    margin: 0 auto;
+    font-size: 18px;
+    text-align: left;
+  }
+  .print-sheet td {
+    padding: 6px 16px;
+    border: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .checkin {
+    grid-template-columns: 1fr;
+  }
+}

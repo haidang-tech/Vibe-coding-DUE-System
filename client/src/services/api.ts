@@ -44,7 +44,9 @@ export interface Donation {
 }
 
 export interface DonorRecord {
-  maDinhDanh: string; // VD: HM-8392
+  maDinhDanh: string; // VD: HM-8392 ("" cho tới khi check-in)
+  checkedIn?: boolean;
+  checkInAt?: string;
   hoTen: string;
   soCccd: string;
   mssv: string;
@@ -56,11 +58,11 @@ export interface DonorRecord {
   donation?: Donation;
 }
 
-const KEY = "hm_donors";
+const KEY = "hm_donors_v2";
 
 const SEED: DonorRecord[] = [
   {
-    maDinhDanh: "HM-8392",
+    maDinhDanh: "",
     hoTen: "Nguyễn Văn An",
     soCccd: "079203001234",
     mssv: "21IT001",
@@ -70,7 +72,7 @@ const SEED: DonorRecord[] = [
     lichHen: "08:30 - 09:00",
   },
   {
-    maDinhDanh: "HM-1457",
+    maDinhDanh: "",
     hoTen: "Trần Thị Bình",
     soCccd: "079204005678",
     mssv: "21IT042",
@@ -78,6 +80,16 @@ const SEED: DonorRecord[] = [
     gioiTinh: "Nữ",
     nhomMau: "A+",
     lichHen: "09:00 - 09:30",
+  },
+  {
+    maDinhDanh: "",
+    hoTen: "Lê Hoàng Cường",
+    soCccd: "079203009999",
+    mssv: "21IT077",
+    ngaySinh: "2003-11-20",
+    gioiTinh: "Nam",
+    nhomMau: "B+",
+    lichHen: "09:30 - 10:00",
   },
 ];
 
@@ -96,13 +108,75 @@ function save(list: DonorRecord[]) {
   localStorage.setItem(KEY, JSON.stringify(list));
 }
 
-const delay = <T,>(v: T, ms = 350) =>
+const delay = <T>(v: T, ms = 350) =>
   new Promise<T>((res) => setTimeout(() => res(v), ms));
 
 /** Tra cứu nghiêm ngặt theo mã định danh (khớp chính xác). */
 export async function lookupByCode(code: string): Promise<DonorRecord | null> {
   const c = code.trim().toUpperCase();
-  return delay(load().find((d) => d.maDinhDanh === c) ?? null);
+  return delay(load().find((d) => d.checkedIn && d.maDinhDanh === c) ?? null);
+}
+
+/* ---------------- Ban Tổ Chức ---------------- */
+
+/** Danh sách sinh viên đã đăng ký thành công trong Database. */
+export async function listDonors(): Promise<DonorRecord[]> {
+  return delay(load(), 200);
+}
+
+/** Bỏ dấu + hạ chữ thường + gộp khoảng trắng để so khớp họ tên. */
+export const normalizeName = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+export type VerifyResult =
+  | { ok: true; donor: DonorRecord; alreadyCheckedIn: boolean }
+  | { ok: false; reason: string };
+
+function newCode(existing: Set<string>): string {
+  let code = "";
+  do {
+    code = `HM-${Math.floor(1000 + Math.random() * 9000)}`;
+  } while (existing.has(code));
+  return code;
+}
+
+/** Đối chiếu Họ tên + Số CCCD với DB; khớp thì check-in và cấp mã định danh. */
+export async function verifyCccd(
+  hoTen: string,
+  soCccd: string,
+): Promise<VerifyResult> {
+  const list = load();
+  const i = list.findIndex((d) => d.soCccd === soCccd.trim());
+  if (i < 0) {
+    return delay({
+      ok: false,
+      reason: "Không tìm thấy thông tin đăng ký / Từ chối check-in",
+    });
+  }
+  if (normalizeName(list[i].hoTen) !== normalizeName(hoTen)) {
+    return delay({
+      ok: false,
+      reason:
+        "Họ tên trên CCCD không khớp với hồ sơ đăng ký / Từ chối check-in",
+    });
+  }
+  const already = !!list[i].checkedIn;
+  if (!already) {
+    list[i] = {
+      ...list[i],
+      checkedIn: true,
+      checkInAt: new Date().toISOString(),
+      maDinhDanh: newCode(new Set(list.map((d) => d.maDinhDanh))),
+    };
+    save(list);
+  }
+  return delay({ ok: true, donor: list[i], alreadyCheckedIn: already });
 }
 
 /** Lưu kết quả sàng lọc sức khỏe. */
@@ -131,7 +205,10 @@ export async function saveDonation(
   return delay(list[i]);
 }
 
-export type NotifyType = "screening_failed" | "donation_failed" | "donation_done";
+export type NotifyType =
+  | "screening_failed"
+  | "donation_failed"
+  | "donation_done";
 
 /** Giả lập gửi thông báo/email cho sinh viên (sau này gọi email.service ở BE). */
 export async function notifyStudent(donor: DonorRecord, type: NotifyType) {
